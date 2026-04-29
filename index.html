@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIBESTYLE — 광택 기반 코디 추천</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+    body { font-family: 'Noto Sans KR', sans-serif; background: #0a0a0a; color: #f0ede8; }
+    h1, h2 { font-family: 'Playfair Display', serif; }
+
+    /* 광택감 시각화 */
+    .gloss-glossy {
+      background: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.25) 100%);
+      box-shadow: inset 0 1px 3px rgba(255,255,255,0.6), 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .gloss-semi {
+      background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.02) 60%);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.3), 0 2px 10px rgba(0,0,0,0.4);
+    }
+    .gloss-matte {
+      background: rgba(255,255,255,0.03);
+      box-shadow: none;
+    }
+
+    /* 선택된 카드 */
+    .item-card.selected { outline: 2px solid #d4af72; }
+
+    /* 글로스 배지 */
+    .badge-glossy { background: linear-gradient(90deg,#c0c0c0,#fff,#c0c0c0); color:#1a1a1a; }
+    .badge-semi   { background: linear-gradient(90deg,#888,#ccc,#888);       color:#1a1a1a; }
+    .badge-matte  { background: #3a3a3a; color:#ccc; }
+
+    /* 추천 카드 등장 */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    .fade-up { animation: fadeUp .45s ease forwards; }
+
+    /* 룩북 미리보기 스와치 */
+    .swatch { width:18px; height:18px; border-radius:50%; border:1px solid rgba(255,255,255,.2); flex-shrink:0; }
+
+    /* 스크롤바 */
+    ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:#111; } ::-webkit-scrollbar-thumb { background:#444; border-radius:2px; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ── Header ── -->
+<header class="border-b border-white/10 px-6 py-5 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl tracking-widest text-[#d4af72]">VIBESTYLE</h1>
+    <p class="text-[10px] tracking-[.3em] text-white/40 uppercase mt-0.5">Gloss × Color Coordination Engine</p>
+  </div>
+  <button onclick="toggleLookbook()" class="text-xs tracking-widest text-white/50 hover:text-[#d4af72] transition border border-white/10 px-4 py-2 rounded-full">
+    룩북 <span id="lb-count" class="text-[#d4af72]">0</span>
+  </button>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 pb-20">
+
+  <!-- ── 오늘의 무드 ── -->
+  <section class="mt-10 mb-8">
+    <p class="text-[11px] tracking-[.25em] text-white/30 uppercase mb-4">Today's Mood</p>
+    <div class="flex flex-wrap gap-3" id="mood-btns">
+      <!-- JS로 삽입 -->
+    </div>
+  </section>
+
+  <!-- ── 아이템 선택 ── -->
+  <section class="grid md:grid-cols-3 gap-6 mb-10">
+    <!-- 상의 -->
+    <div>
+      <p class="text-[11px] tracking-[.2em] text-white/40 uppercase mb-3">상의 Top</p>
+      <div id="top-colors" class="grid grid-cols-4 gap-2 mb-3"></div>
+      <div id="top-gloss" class="flex gap-2"></div>
+    </div>
+    <!-- 하의 -->
+    <div>
+      <p class="text-[11px] tracking-[.2em] text-white/40 uppercase mb-3">하의 Bottom</p>
+      <div id="bottom-colors" class="grid grid-cols-4 gap-2 mb-3"></div>
+      <div id="bottom-gloss" class="flex gap-2"></div>
+    </div>
+    <!-- 아우터 -->
+    <div>
+      <p class="text-[11px] tracking-[.2em] text-white/40 uppercase mb-3">아우터 Outer</p>
+      <div id="outer-colors" class="grid grid-cols-4 gap-2 mb-3"></div>
+      <div id="outer-gloss" class="flex gap-2"></div>
+    </div>
+  </section>
+
+  <!-- ── 추천 버튼 ── -->
+  <div class="flex justify-center mb-10">
+    <button onclick="recommend()" class="px-10 py-3 bg-[#d4af72] text-black text-sm tracking-widest font-bold rounded-full hover:bg-[#e8c98a] transition shadow-lg shadow-[#d4af72]/20">
+      코디 분석 →
+    </button>
+  </div>
+
+  <!-- ── 결과 패널 ── -->
+  <section id="result-panel" class="hidden fade-up">
+    <div class="border border-white/10 rounded-2xl p-6 bg-white/3 backdrop-blur">
+
+      <!-- 조합 미리보기 -->
+      <div id="preview-swatches" class="flex items-center gap-3 mb-6"></div>
+
+      <!-- 점수 바 -->
+      <div class="mb-6">
+        <div class="flex justify-between text-xs text-white/40 mb-1">
+          <span>코디 조화도</span>
+          <span id="score-label">—</span>
+        </div>
+        <div class="h-1.5 bg-white/10 rounded-full overflow-hidden">
+          <div id="score-bar" class="h-full bg-[#d4af72] rounded-full transition-all duration-700" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- AI 코멘트 -->
+      <div class="mb-6">
+        <p class="text-[10px] tracking-[.2em] text-[#d4af72] uppercase mb-2">Style Comment</p>
+        <p id="ai-comment" class="text-sm text-white/80 leading-relaxed"></p>
+      </div>
+
+      <!-- 추천 아이템 태그 -->
+      <div class="mb-6">
+        <p class="text-[10px] tracking-[.2em] text-white/30 uppercase mb-2">추천 소재 & 키워드</p>
+        <div id="rec-tags" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- 저장 버튼 -->
+      <button onclick="saveLook()" class="text-xs border border-[#d4af72]/40 text-[#d4af72] px-5 py-2 rounded-full hover:bg-[#d4af72]/10 transition">
+        + 룩북에 저장
+      </button>
+    </div>
+  </section>
+
+  <!-- ── 룩북 패널 ── -->
+  <section id="lookbook-panel" class="hidden mt-10">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg tracking-widest text-[#d4af72]">My Lookbook</h2>
+      <button onclick="clearLookbook()" class="text-[10px] text-white/20 hover:text-red-400 transition">전체 삭제</button>
+    </div>
+    <div id="lookbook-list" class="grid sm:grid-cols-2 gap-3"></div>
+    <p id="lb-empty" class="text-white/20 text-sm text-center py-10">저장된 룩이 없습니다.</p>
+  </section>
+
+</main>
+
+<script>
+// ══════════════════════════════════════════════════
+// 1. 데이터 정의
+// ══════════════════════════════════════════════════
+const COLORS = [
+  { id:'black',  label:'블랙',  hex:'#1a1a1a', family:'achromatic' },
+  { id:'white',  label:'화이트', hex:'#f5f0eb', family:'achromatic' },
+  { id:'gray',   label:'그레이', hex:'#808080', family:'achromatic' },
+  { id:'navy',   label:'네이비', hex:'#1e2d5a', family:'cool' },
+  { id:'blue',   label:'블루',  hex:'#3b6ead', family:'cool' },
+  { id:'sky',    label:'스카이', hex:'#87ceeb', family:'cool' },
+  { id:'mint',   label:'민트',  hex:'#98d8c8', family:'cool' },
+  { id:'beige',  label:'베이지', hex:'#d4c5a9', family:'warm' },
+  { id:'cream',  label:'크림',  hex:'#f2ead8', family:'warm' },
+  { id:'brown',  label:'브라운', hex:'#8b5c2a', family:'warm' },
+  { id:'burgundy',label:'버건디',hex:'#6b1e2e', family:'warm' },
+  { id:'khaki',  label:'카키',  hex:'#6b7c45', family:'neutral' },
+  { id:'olive',  label:'올리브', hex:'#4a4a2a', family:'neutral' },
+  { id:'camel',  label:'카멜',  hex:'#c19a6b', family:'warm' },
+  { id:'pink',   label:'핑크',  hex:'#f4a7b9', family:'warm' },
+  { id:'purple', label:'퍼플',  hex:'#7b5ea7', family:'cool' },
+];
+
+const GLOSS_TYPES = [
+  { id:'glossy', label:'유광', badge:'badge-glossy', materials:['가죽','PU 레더','실크','새틴','비닐','라텍스','PVC'] },
+  { id:'semi',   label:'반유광', badge:'badge-semi',   materials:['코팅 나일론','광택 폴리에스터','세미글로스 저지','하이신스'] },
+  { id:'matte',  label:'무광', badge:'badge-matte',  materials:['면','데님','울','린넨','스웨이드','퍼','헤링본'] },
+];
+
+const MOODS = [
+  {
+    id:'date', label:'데이트', emoji:'🌹',
+    desc:'차분하고 고급스러운',
+    preset:{ top:{color:'burgundy',gloss:'semi'}, bottom:{color:'black',gloss:'matte'}, outer:{color:'camel',gloss:'matte'} }
+  },
+  {
+    id:'office', label:'출근', emoji:'💼',
+    desc:'신뢰감 있는 클린룩',
+    preset:{ top:{color:'white',gloss:'semi'}, bottom:{color:'navy',gloss:'matte'}, outer:{color:'gray',gloss:'matte'} }
+  },
+  {
+    id:'street', label:'스트릿', emoji:'🔥',
+    desc:'힙하고 광택 포인트',
+    preset:{ top:{color:'black',gloss:'glossy'}, bottom:{color:'black',gloss:'matte'}, outer:{color:'black',gloss:'semi'} }
+  },
+  {
+    id:'resort', label:'리조트', emoji:'🌊',
+    desc:'밝고 청량한 바캉스',
+    preset:{ top:{color:'sky',gloss:'semi'}, bottom:{color:'white',gloss:'matte'}, outer:{color:'mint',gloss:'matte'} }
+  },
+  {
+    id:'minimal', label:'미니멀', emoji:'◻️',
+    desc:'군더더기 없는 베이직',
+    preset:{ top:{color:'white',gloss:'matte'}, bottom:{color:'gray',gloss:'matte'}, outer:{color:'beige',gloss:'matte'} }
+  },
+];
+
+// ══════════════════════════════════════════════════
+// 2. 상태
+// ══════════════════════════════════════════════════
+const state = {
+  top:    { color: null, gloss: null },
+  bottom: { color: null, gloss: null },
+  outer:  { color: null, gloss: null },
+};
+let currentResult = null;
+
+// ══════════════════════════════════════════════════
+// 3. 렌더: 색상 & 광택 버튼
+// ══════════════════════════════════════════════════
+function renderColorPicker(part, containerId) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  COLORS.forEach(c => {
+    const btn = document.createElement('button');
+    btn.title = c.label;
+    btn.dataset.color = c.id;
+    btn.dataset.part = part;
+    btn.className = 'item-card w-full aspect-square rounded-lg border border-white/10 transition hover:scale-110 relative';
+    btn.style.backgroundColor = c.hex;
+    if (state[part].color === c.id) btn.classList.add('selected');
+    btn.onclick = () => selectColor(part, c.id);
+    el.appendChild(btn);
+  });
+}
+
+function renderGlossPicker(part, containerId) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  GLOSS_TYPES.forEach(g => {
+    const btn = document.createElement('button');
+    btn.className = `flex-1 text-[10px] font-bold py-1.5 rounded-full tracking-wider transition ${g.badge} ${state[part].gloss === g.id ? 'ring-2 ring-[#d4af72]' : 'opacity-60 hover:opacity-100'}`;
+    // 광택 시각화 오버레이
+    const overlay = `gloss-${g.id}`;
+    btn.classList.add(overlay);
+    btn.textContent = g.label;
+    btn.onclick = () => selectGloss(part, g.id);
+    el.appendChild(btn);
+  });
+}
+
+function renderMoodButtons() {
+  const el = document.getElementById('mood-btns');
+  MOODS.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'px-4 py-2 rounded-full border border-white/10 text-sm text-white/60 hover:text-white hover:border-[#d4af72]/50 transition flex items-center gap-2';
+    btn.innerHTML = `<span>${m.emoji}</span><span>${m.label}</span><span class="text-[10px] text-white/30">${m.desc}</span>`;
+    btn.onclick = () => applyMood(m);
+    el.appendChild(btn);
+  });
+}
+
+function renderAll() {
+  ['top','bottom','outer'].forEach(part => {
+    renderColorPicker(part, `${part}-colors`);
+    renderGlossPicker(part, `${part}-gloss`);
+  });
+}
+
+// ══════════════════════════════════════════════════
+// 4. 선택 핸들러
+// ══════════════════════════════════════════════════
+function selectColor(part, colorId) {
+  state[part].color = colorId;
+  renderColorPicker(part, `${part}-colors`);
+}
+
+function selectGloss(part, glossId) {
+  state[part].gloss = glossId;
+  renderGlossPicker(part, `${part}-gloss`);
+}
+
+function applyMood(mood) {
+  ['top','bottom','outer'].forEach(part => {
+    state[part].color = mood.preset[part].color;
+    state[part].gloss = mood.preset[part].gloss;
+  });
+  renderAll();
+}
+
+// ══════════════════════════════════════════════════
+// 5. 핵심 알고리즘: 조화 점수 + 추천 로직
+// ══════════════════════════════════════════════════
+function getColorObj(id) { return COLORS.find(c => c.id === id); }
+function getGlossObj(id) { return GLOSS_TYPES.find(g => g.id === id); }
+
+function calcScore(top, bottom, outer) {
+  let score = 50;
+
+  // 5-1. 색상 계열 조화
+  const families = [top.color.family, bottom.color.family, outer.color.family];
+  const uniqueFamilies = new Set(families.filter(f => f !== 'achromatic'));
+
+  if (uniqueFamilies.size === 0) score += 20;           // 전체 무채색: 세련
+  else if (uniqueFamilies.size === 1) score += 25;      // 톤온톤: 매우 좋음
+  else if (uniqueFamilies.size === 2) score += 10;      // 유사색: 좋음
+  else score -= 10;                                      // 3가지 계열 혼합: 위험
+
+  // 5-2. 광택 밸런스 규칙
+  const glossCounts = { glossy:0, semi:0, matte:0 };
+  [top.gloss, bottom.gloss, outer.gloss].forEach(g => { if(g) glossCounts[g.id]++; });
+
+  if (glossCounts.glossy >= 2) score -= 25;             // 유광 2개 이상: 과함
+  if (glossCounts.glossy === 1 && glossCounts.matte >= 1) score += 20; // 유광1+무광: 이상적 밸런스
+  if (glossCounts.glossy === 0 && glossCounts.semi <= 1) score += 10;  // 전체 무광~반유광: 안정
+
+  // 5-3. 상의 유광 → 하의 무광 황금룰
+  if (top.gloss?.id === 'glossy' && bottom.gloss?.id === 'matte') score += 15;
+  if (top.gloss?.id === 'matte'  && bottom.gloss?.id === 'glossy') score -= 5;
+
+  // 5-4. 아우터 유광은 감점 (상하 모두 유광이면)
+  if (outer.gloss?.id === 'glossy' && (top.gloss?.id === 'glossy' || bottom.gloss?.id === 'glossy')) score -= 15;
+
+  return Math.min(100, Math.max(0, score));
+}
+
+function buildComment(top, bottom, outer, score) {
+  const parts = { top, bottom, outer };
+  const glossy = Object.entries(parts).find(([,v]) => v.gloss?.id === 'glossy');
+  const allMatte = Object.values(parts).every(v => v.gloss?.id === 'matte');
+  const toneon = new Set([top.color.family, bottom.color.family, outer.color.family].filter(f => f !== 'achromatic')).size <= 1;
+
+  let comment = '';
+
+  if (score >= 85) {
+    comment = '완벽한 조화입니다. ';
+  } else if (score >= 65) {
+    comment = '전반적으로 잘 어울리는 조합이에요. ';
+  } else if (score >= 45) {
+    comment = '개성 있는 조합이지만 한 가지를 바꾸면 더 좋아집니다. ';
+  } else {
+    comment = '현재 조합은 다소 충돌감이 있어요. 광택 또는 색상 계열을 조정해보세요. ';
+  }
+
+  if (glossy) {
+    const partName = { top:'상의', bottom:'하의', outer:'아우터' }[glossy[0]];
+    const mat = glossy[1].gloss.materials[0];
+    comment += `${partName}의 ${mat} 광택이 포인트가 되어 전체 룩에 긴장감을 줍니다. `;
+    comment += `나머지 아이템은 매트한 소재로 눌러줘야 과하지 않아요.`;
+  } else if (allMatte) {
+    comment += `전체 무광 소재 조합으로 편안하고 클래식한 분위기가 완성됩니다. 액세서리 하나로 포인트를 주면 더욱 좋습니다.`;
+  } else if (toneon) {
+    comment += `같은 계열의 색상을 레이어드한 '톤온톤' 룩입니다. 소재의 질감 차이만으로 깊이 있는 스타일링이 가능합니다.`;
+  } else {
+    comment += `색상 계열이 다양하게 섞였어요. 한 아이템을 블랙·화이트·그레이 무채색으로 교체하면 더 안정적입니다.`;
+  }
+
+  return comment;
+}
+
+function buildTags(top, bottom, outer) {
+  const tags = new Set();
+  const glossy = [top, bottom, outer].find(v => v.gloss?.id === 'glossy');
+  const allFamily = [top.color.family, bottom.color.family, outer.color.family];
+
+  if (glossy) { glossy.gloss.materials.slice(0,3).forEach(m => tags.add(m)); }
+  [top, bottom, outer].forEach(v => {
+    if (v.gloss?.id === 'matte') v.gloss.materials.slice(0,2).forEach(m => tags.add(m));
+  });
+
+  if (allFamily.every(f => f === 'achromatic')) { tags.add('올블랙'); tags.add('모노크롬'); }
+  if (new Set(allFamily.filter(f => f !== 'achromatic')).size <= 1) tags.add('톤온톤');
+  if ([top, bottom, outer].filter(v => v.gloss?.id === 'matte').length === 3) tags.add('올매트');
+
+  return [...tags].slice(0, 8);
+}
+
+function buildMaterialSuggestion(top, bottom, outer) {
+  const suggestions = [];
+
+  // 유광 상의 → 하의 소재 추천
+  if (top.gloss?.id === 'glossy') {
+    suggestions.push({ part:'하의', reason:'상의가 유광이므로', rec:'매트한 데님 또는 울 슬랙스' });
+  }
+  if (top.gloss?.id === 'glossy' && outer.gloss?.id !== 'matte') {
+    suggestions.push({ part:'아우터', reason:'유광 상의와의 밸런스를 위해', rec:'무광 트렌치코트 또는 울 코트' });
+  }
+  if (bottom.gloss?.id === 'glossy') {
+    suggestions.push({ part:'상의', reason:'하의가 유광이므로', rec:'린넨 또는 면 소재 무광 셔츠' });
+  }
+
+  return suggestions;
+}
+
+// ══════════════════════════════════════════════════
+// 6. 추천 실행
+// ══════════════════════════════════════════════════
+function recommend() {
+  const { top, bottom, outer } = state;
+
+  if (!top.color || !top.gloss || !bottom.color || !bottom.gloss || !outer.color || !outer.gloss) {
+    alert('상의, 하의, 아우터의 색상과 광택감을 모두 선택해주세요.');
+    return;
+  }
+
+  const topObj    = { color: getColorObj(top.color),    gloss: getGlossObj(top.gloss) };
+  const bottomObj = { color: getColorObj(bottom.color), gloss: getGlossObj(bottom.gloss) };
+  const outerObj  = { color: getColorObj(outer.color),  gloss: getGlossObj(outer.gloss) };
+
+  const score   = calcScore(topObj, bottomObj, outerObj);
+  const comment = buildComment(topObj, bottomObj, outerObj, score);
+  const tags    = buildTags(topObj, bottomObj, outerObj);
+
+  currentResult = { top: topObj, bottom: bottomObj, outer: outerObj, score, comment, tags, timestamp: Date.now() };
+
+  // 미리보기 스와치
+  const swatchEl = document.getElementById('preview-swatches');
+  swatchEl.innerHTML = '';
+  [
+    { label:'상의', obj:topObj },
+    { label:'하의', obj:bottomObj },
+    { label:'아우터', obj:outerObj },
+  ].forEach(({ label, obj }) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'flex items-center gap-2';
+    wrap.innerHTML = `
+      <div class="swatch" style="background:${obj.color.hex}"></div>
+      <div>
+        <p class="text-[10px] text-white/30">${label}</p>
+        <p class="text-xs text-white/70">${obj.color.label} · ${obj.gloss.label}</p>
+      </div>
+    `;
+    swatchEl.appendChild(wrap);
+    if (label !== '아우터') {
+      const sep = document.createElement('span');
+      sep.className = 'text-white/20 text-lg mx-1';
+      sep.textContent = '+';
+      swatchEl.appendChild(sep);
+    }
+  });
+
+  // 점수 바
+  document.getElementById('score-label').textContent = `${score}점`;
+  setTimeout(() => { document.getElementById('score-bar').style.width = `${score}%`; }, 50);
+  document.getElementById('score-bar').style.backgroundColor = score >= 75 ? '#d4af72' : score >= 50 ? '#a0a0ff' : '#ff7070';
+
+  // AI 코멘트
+  document.getElementById('ai-comment').textContent = comment;
+
+  // 추천 태그
+  const tagEl = document.getElementById('rec-tags');
+  tagEl.innerHTML = '';
+  tags.forEach(t => {
+    const span = document.createElement('span');
+    span.className = 'px-3 py-1 rounded-full border border-white/15 text-xs text-white/60';
+    span.textContent = `# ${t}`;
+    tagEl.appendChild(span);
+  });
+
+  // 패널 표시
+  const panel = document.getElementById('result-panel');
+  panel.classList.remove('hidden');
+  panel.classList.remove('fade-up');
+  void panel.offsetWidth;
+  panel.classList.add('fade-up');
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ══════════════════════════════════════════════════
+// 7. 룩북
+// ══════════════════════════════════════════════════
+function getLookbook() { return JSON.parse(localStorage.getItem('vibestyle_lookbook') || '[]'); }
+function saveLookbook(lb) { localStorage.setItem('vibestyle_lookbook', JSON.stringify(lb)); }
+
+function saveLook() {
+  if (!currentResult) return;
+  const lb = getLookbook();
+  lb.unshift(currentResult);
+  saveLookbook(lb);
+  updateLbCount();
+  renderLookbook();
+
+  const btn = document.querySelector('#result-panel button[onclick="saveLook()"]');
+  const orig = btn.textContent;
+  btn.textContent = '✓ 저장됨';
+  btn.disabled = true;
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
+}
+
+function renderLookbook() {
+  const lb = getLookbook();
+  const list = document.getElementById('lookbook-list');
+  const empty = document.getElementById('lb-empty');
+  list.innerHTML = '';
+
+  if (lb.length === 0) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  lb.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'border border-white/10 rounded-xl p-4 bg-white/3 flex gap-4 items-start';
+
+    const swatches = [item.top, item.bottom, item.outer].map(v =>
+      `<div class="swatch" style="background:${v.color.hex}" title="${v.color.label} ${v.gloss.label}"></div>`
+    ).join('');
+
+    const date = new Date(item.timestamp).toLocaleDateString('ko-KR', { month:'short', day:'numeric' });
+
+    card.innerHTML = `
+      <div class="flex gap-1.5 mt-1">${swatches}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs text-white/30">${date}</span>
+          <span class="text-xs font-bold text-[#d4af72]">${item.score}점</span>
+        </div>
+        <p class="text-[11px] text-white/60 leading-relaxed line-clamp-2">${item.comment}</p>
+        <div class="flex gap-1.5 mt-2 flex-wrap">
+          ${item.tags.slice(0,4).map(t=>`<span class="text-[9px] border border-white/10 px-2 py-0.5 rounded-full text-white/30">#${t}</span>`).join('')}
+        </div>
+      </div>
+      <button onclick="deleteLook(${i})" class="text-white/15 hover:text-red-400 text-lg leading-none shrink-0">×</button>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function deleteLook(idx) {
+  const lb = getLookbook();
+  lb.splice(idx, 1);
+  saveLookbook(lb);
+  updateLbCount();
+  renderLookbook();
+}
+
+function clearLookbook() {
+  if (!confirm('룩북을 전부 삭제할까요?')) return;
+  saveLookbook([]);
+  updateLbCount();
+  renderLookbook();
+}
+
+function updateLbCount() {
+  document.getElementById('lb-count').textContent = getLookbook().length;
+}
+
+function toggleLookbook() {
+  const panel = document.getElementById('lookbook-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) {
+    renderLookbook();
+    panel.scrollIntoView({ behavior:'smooth' });
+  }
+}
+
+// ══════════════════════════════════════════════════
+// 8. 초기화
+// ══════════════════════════════════════════════════
+renderAll();
+renderMoodButtons();
+updateLbCount();
+</script>
+</body>
+</html>
